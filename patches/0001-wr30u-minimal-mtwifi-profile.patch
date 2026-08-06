@@ -1,0 +1,47 @@
+diff --git a/target/linux/mediatek/Makefile b/target/linux/mediatek/Makefile
+index 49c5d54dc..35ca5b609 100644
+--- a/target/linux/mediatek/Makefile
++++ b/target/linux/mediatek/Makefile
+@@ -12,13 +12,6 @@ KERNEL_PATCHVER:=6.6
+ 
+ include $(INCLUDE_DIR)/target.mk
+ DEFAULT_PACKAGES += \
+-	kmod-leds-gpio kmod-gpio-button-hotplug autocore-arm ethtool \
+-	kmod-nft-socket kmod-nft-tproxy kmod-nft-nat kmod-inet-diag \
+-	kmod-ipt-nat6 kmod-ipt-nat kmod-dummy \
+-	kmod-ipt-physdev kmod-nf-ipvs kmod-veth kmod-wireguard \
+-	kmod-ipt-fullconenat kmod-fs-btrfs luci-app-ttyd \
+-	automount blkid blockdev fdisk \
+-    	kmod-nls-cp437 kmod-nls-iso8859-1 kmod-usb2 kmod-usb3 \
+-	kmod-usb-net-rndis usbutils
++	kmod-leds-gpio kmod-gpio-button-hotplug autocore-arm ethtool
+ 
+ $(eval $(call BuildTarget))
+diff --git a/target/linux/mediatek/filogic/target.mk b/target/linux/mediatek/filogic/target.mk
+index a66a83cc7..ac5061fe8 100644
+--- a/target/linux/mediatek/filogic/target.mk
++++ b/target/linux/mediatek/filogic/target.mk
+@@ -2,7 +2,7 @@ ARCH:=aarch64
+ SUBTARGET:=filogic
+ BOARDNAME:=Filogic 8x0 (MT798x)
+ CPU_TYPE:=cortex-a53
+-DEFAULT_PACKAGES += fitblk kmod-phy-aquantia kmod-crypto-hw-safexcel wpad-openssl uboot-envtools
++DEFAULT_PACKAGES += fitblk kmod-crypto-hw-safexcel uboot-envtools
+ KERNELNAME:=Image dtbs
+ 
+ define Target/Description
+diff --git a/target/linux/mediatek/image/filogic.mk b/target/linux/mediatek/image/filogic.mk
+index 295e5a232..aad047ec2 100644
+--- a/target/linux/mediatek/image/filogic.mk
++++ b/target/linux/mediatek/image/filogic.mk
+@@ -2506,7 +2506,9 @@ define Device/xiaomi_mi-router-wr30u-ubootmod
+   UBINIZE_OPTS := -E 5
+   BLOCKSIZE := 128k
+   PAGESIZE := 2048
+-  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware
++  DEVICE_PACKAGES := kmod-mt_wifi kmod-mediatek_hnat kmod-warp mtwifi-cfg \
++	luci-app-mtwifi-cfg luci-i18n-mtwifi-cfg-zh-cn \
++	luci-app-upnp luci-i18n-upnp-zh-cn miniupnpd-nftables iwinfo
+ ifneq ($(CONFIG_TARGET_ROOTFS_INITRAMFS),)
+   ARTIFACTS := initramfs-factory.ubi
+   ARTIFACT/initramfs-factory.ubi := append-image-stage initramfs-kernel.bin | ubinize-kernel

@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# Keep UPnP installed and visible in LuCI, but never expose it automatically.
+if uci -q get upnpd.config >/dev/null; then
+	uci set upnpd.config.enabled='0'
+	uci commit upnpd
+fi
+
+/etc/init.d/miniupnpd stop 2>/dev/null || true
+/etc/init.d/miniupnpd disable 2>/dev/null || true
+
+exit 0

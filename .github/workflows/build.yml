@@ -1,0 +1,135 @@
+name: Build WR30U minimal mtwifi firmware
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build.yml"
+      - "configs/**"
+      - "files/**"
+      - "patches/**"
+      - "scripts/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wr30u-firmware-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_REPOSITORY: https://github.com/padavanonly/immortalwrt-mt798x-6.6.git
+  SOURCE_BRANCH: openwrt-24.10-6.6
+  SOURCE_COMMIT: ec9ef10efc65da1e6d1de4e2c043c0e13d08eed8
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Check out build repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ack antlr3 asciidoc autoconf automake autopoint binutils bison \
+            build-essential bzip2 ccache clang cmake cpio curl \
+            device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib \
+            g++-multilib git gnutls-dev gperf haveged help2man intltool \
+            libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev \
+            libmpc-dev libmpfr-dev libncurses-dev libpython3-dev \
+            libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm \
+            lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch \
+            pkgconf python3 python3-pip python3-ply python3-docutils \
+            python3-pyelftools qemu-utils re2c rsync scons squashfs-tools \
+            subversion swig texinfo uglifyjs unzip vim wget xmlto xxd \
+            zlib1g-dev zstd upx-ucl
+
+      - name: Fetch pinned 237 source
+        run: |
+          mkdir source
+          git -C source init
+          git -C source remote add origin "$SOURCE_REPOSITORY"
+          git -C source fetch --depth=1 origin "$SOURCE_COMMIT"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_COMMIT"
+          cp configs/feeds.conf source/feeds.conf
+
+      - name: Install pinned feeds
+        working-directory: source
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Prepare minimal WR30U configuration
+        run: |
+          cp -a files/. source/files/
+          ./scripts/prepare-config.sh source
+          (cd source && ./scripts/diffconfig.sh) | tee source/wr30u-minimal.diffconfig
+
+      - name: Download sources
+        working-directory: source
+        run: |
+          make download -j8 || make download -j1 V=s
+          find dl -type f -size -1024c -print -delete
+          make download -j1 V=s
+
+      - name: Build firmware
+        working-directory: source
+        run: |
+          make -j"$(nproc)" || make -j1 V=s
+
+      - name: Collect and verify artifacts
+        run: |
+          mkdir artifacts
+          image=$(find source/bin/targets/mediatek/filogic -maxdepth 1 -type f \
+            -name '*xiaomi_mi-router-wr30u-ubootmod*squashfs-sysupgrade.bin' \
+            -print -quit)
+          test -n "$image"
+          cp "$image" artifacts/
+          manifest=$(find source/bin/targets/mediatek/filogic -maxdepth 1 -type f \
+            -name '*xiaomi_mi-router-wr30u-ubootmod*.manifest' -print -quit)
+          test -n "$manifest"
+          cp "$manifest" artifacts/
+          cp source/.config artifacts/build.config
+          cp source/wr30u-minimal.diffconfig artifacts/
+          find source/bin/targets/mediatek/filogic -maxdepth 1 -type f \
+            \( -name profiles.json -o -name version.buildinfo -o -name feeds.buildinfo \
+               -o -name config.buildinfo \) -exec cp '{}' artifacts/ \;
+          {
+            echo "source_repository=$SOURCE_REPOSITORY"
+            echo "source_branch=$SOURCE_BRANCH"
+            echo "source_commit=$SOURCE_COMMIT"
+            for feed in packages luci routing telephony; do
+              echo "feed_${feed}=$(git -C source/feeds/$feed rev-parse HEAD)"
+            done
+          } > artifacts/BUILD-INFO.txt
+          expected=$(sed -n 's#.*github.com/[^ ]*\.git\^##p' configs/feeds.conf)
+          actual=$(for feed in packages luci routing telephony; do git -C source/feeds/$feed rev-parse HEAD; done)
+          test "$actual" = "$expected"
+          (cd artifacts && sha256sum -- * > SHA256SUMS)
+          grep -F 'CONFIG_PACKAGE_luci-app-upnp=y' artifacts/build.config
+          grep -F 'CONFIG_PACKAGE_kmod-mt_wifi=y' artifacts/build.config
+          grep -F 'CONFIG_PACKAGE_kmod-mediatek_hnat=y' artifacts/build.config
+          grep -F 'CONFIG_PACKAGE_kmod-warp=y' artifacts/build.config
+          for package in \
+            kmod-mt7915e luci-app-ttyd luci-app-adguardhome luci-app-passwall \
+            luci-app-ssr-plus luci-app-wrtbwmon samba4-server dockerd; do
+            if grep -Eq "^${package}([[:space:]]|$)" "$manifest"; then
+              echo "forbidden package present in firmware manifest: $package" >&2
+              exit 1
+            fi
+          done
+          ls -lh artifacts
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wr30u-237-24.10-6.6-mtwifi-minimal
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
