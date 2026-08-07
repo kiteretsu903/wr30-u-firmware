@@ -1,0 +1,16 @@
+#!/bin/sh
+
+[ "${ACTION}" = "add" ] && [ "${INTERFACE%%[0-9]}" = "ra" ] && {
+	[ -f /etc/config/wireless ] || first_boot=1
+	/sbin/wifi config
+
+	# Match OpenWrt's secure first-boot behavior: expose the radios in LuCI,
+	# but do not broadcast the vendor profiles' unencrypted default SSIDs.
+	if [ "${first_boot:-0}" = "1" ]; then
+		for section in $(uci -q show wireless | sed -n 's/^wireless\.\([^.]*\)=wifi-iface$/\1/p'); do
+			uci -q set "wireless.${section}.disabled=1"
+		done
+		uci -q commit wireless
+		/sbin/wifi up
+	fi
+}

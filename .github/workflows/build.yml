@@ -150,7 +150,8 @@ jobs:
           grep -F 'CONFIG_PACKAGE_kmod-mt_wifi=y' artifacts/build.config
           grep -F 'CONFIG_PACKAGE_kmod-mediatek_hnat=y' artifacts/build.config
           grep -F 'CONFIG_PACKAGE_kmod-warp=y' artifacts/build.config
-          for package in firewall4 dropbear mtwifi-cfg miniupnpd-nftables; do
+          grep -F 'CONFIG_PACKAGE_wifi-scripts=y' artifacts/build.config
+          for package in firewall4 dropbear wifi-scripts mtwifi-cfg miniupnpd-nftables; do
             grep -Eq "^${package}[[:space:]]+-[[:space:]]+" "$manifest" || {
               echo "required package missing from firmware manifest: $package" >&2
               exit 1

@@ -53,6 +53,7 @@ CONFIG_PACKAGE_kmod-mt_wifi=y
 CONFIG_PACKAGE_kmod-mediatek_hnat=y
 CONFIG_PACKAGE_kmod-ipt-nat=y
 CONFIG_PACKAGE_kmod-warp=y
+CONFIG_PACKAGE_wifi-scripts=y
 CONFIG_PACKAGE_mtwifi-cfg=y
 CONFIG_PACKAGE_luci-app-mtwifi-cfg=y
 CONFIG_PACKAGE_luci-app-upnp=y

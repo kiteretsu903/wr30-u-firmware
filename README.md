@@ -55,13 +55,17 @@ The retained core functionality includes:
 
 - base OpenWrt/ImmortalWrt routing components: firewall4, dnsmasq, odhcpd, and Dropbear;
 - LuCI with the lightweight default interface;
-- MTK `kmod-mt_wifi`, `mtwifi-cfg`, and the matching LuCI pages;
+- MTK `kmod-mt_wifi`, `mtwifi-cfg`, `wifi-scripts`, and the matching LuCI pages;
 - MTK HNAT and WARP;
 - the legacy `kmod-ipt-nat` kernel compatibility module required by the 237 HNAT Kconfig (the active userspace firewall remains nftables/firewall4);
 - nftables miniupnpd and the LuCI UPnP page;
 - `iwinfo` for basic wireless status checks.
 
 The script starts from the upstream MT7981 defconfig so the internal mtwifi/WARP Kconfig requirements are preserved. It then removes unrelated device selections and convenience packages before adding the small package set above. The open-source `mt76` packages inherited by the WR30U profile are explicitly excluded to avoid mixing them with the MTK vendor Wi-Fi stack.
+
+`wifi-scripts` is intentionally retained even though this image does not use the mac80211/mt76 stack. It supplies `/sbin/wifi` and netifd's wireless helper, which `mtwifi-cfg` needs to create `/etc/config/wireless` on first boot and expose both MediaTek radios in LuCI.
+
+On a clean first boot, both generated radios are visible in LuCI but disabled. Configure WPA2/WPA3 credentials before enabling them; this prevents the vendor defaults from briefly broadcasting unencrypted `ImmortalWrt-2.4G` and `ImmortalWrt-5G` networks.
 
 [`patches/0001-wr30u-minimal-mtwifi-profile.patch`](patches/0001-wr30u-minimal-mtwifi-profile.patch) is the only intentional upstream source patch in this build. It narrows 237's broad default package set for MediaTek devices and replaces the WR30U ubootmod profile's default Wi-Fi packages with the mtwifi/HNAT/WARP and LuCI/UPnP set used here. The build fails immediately if this patch no longer applies cleanly to the pinned commit.
 
