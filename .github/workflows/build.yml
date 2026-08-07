@@ -86,14 +86,33 @@ jobs:
       - name: Collect and verify artifacts
         run: |
           mkdir artifacts
-          image=$(find source/bin/targets/mediatek/filogic -maxdepth 1 -type f \
-            -name '*xiaomi_mi-router-wr30u-ubootmod*squashfs-sysupgrade.bin' \
-            -print -quit)
-          test -n "$image"
+          target_dir=source/bin/targets/mediatek/filogic
+          find "$target_dir" -maxdepth 2 -type f -printf '%P\n' | sort
+          test -s "$target_dir/profiles.json"
+          image_name=$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          profiles = json.loads(Path("source/bin/targets/mediatek/filogic/profiles.json").read_text())
+          profile = profiles.get("profiles", {}).get("xiaomi_mi-router-wr30u-ubootmod")
+          if not profile:
+              raise SystemExit("WR30U ubootmod profile is missing from profiles.json")
+          images = [
+              image for image in profile.get("images", [])
+              if image.get("type") == "sysupgrade" or image.get("name", "").endswith("sysupgrade.bin")
+          ]
+          if len(images) != 1:
+              raise SystemExit(f"expected one WR30U sysupgrade image, found {len(images)}: {images}")
+          print(images[0]["name"])
+          PY
+          )
+          image="$target_dir/$image_name"
+          test -s "$image"
           cp "$image" artifacts/
-          manifest=$(find source/bin/targets/mediatek/filogic -maxdepth 1 -type f \
-            -name '*xiaomi_mi-router-wr30u-ubootmod*.manifest' -print -quit)
-          test -n "$manifest"
+          mapfile -t manifests < <(find "$target_dir" -maxdepth 1 -type f -name '*.manifest' -print)
+          test "${#manifests[@]}" -eq 1
+          manifest=${manifests[0]}
+          test -s "$manifest"
           cp "$manifest" artifacts/
           cp source/.config artifacts/build.config
           cp source/wr30u-minimal.diffconfig artifacts/
@@ -111,15 +130,41 @@ jobs:
           expected=$(sed -n 's#.*github.com/[^ ]*\.git\^##p' configs/feeds.conf)
           actual=$(for feed in packages luci routing telephony; do git -C source/feeds/$feed rev-parse HEAD; done)
           test "$actual" = "$expected"
+          python3 - "$target_dir/profiles.json" "$image" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          profiles_path, image_path = map(Path, sys.argv[1:])
+          profile = json.loads(profiles_path.read_text())["profiles"]["xiaomi_mi-router-wr30u-ubootmod"]
+          image = next(item for item in profile["images"] if item["name"] == image_path.name)
+          expected = image.get("sha256")
+          actual = hashlib.sha256(image_path.read_bytes()).hexdigest()
+          if expected and actual != expected:
+              raise SystemExit(f"firmware checksum mismatch: expected {expected}, got {actual}")
+          print(f"verified WR30U profile image: {image_path.name} ({actual})")
+          PY
           (cd artifacts && sha256sum -- * > SHA256SUMS)
           grep -F 'CONFIG_PACKAGE_luci-app-upnp=y' artifacts/build.config
           grep -F 'CONFIG_PACKAGE_kmod-mt_wifi=y' artifacts/build.config
           grep -F 'CONFIG_PACKAGE_kmod-mediatek_hnat=y' artifacts/build.config
           grep -F 'CONFIG_PACKAGE_kmod-warp=y' artifacts/build.config
+          for package in firewall4 dropbear mtwifi-cfg miniupnpd-nftables; do
+            grep -Eq "^${package}[[:space:]]+-[[:space:]]+" "$manifest" || {
+              echo "required package missing from firmware manifest: $package" >&2
+              exit 1
+            }
+          done
+          grep -Eq '^(dnsmasq|dnsmasq-full)[[:space:]]+-[[:space:]]+' "$manifest"
+          grep -Eq '^(odhcpd|odhcpd-ipv6only)[[:space:]]+-[[:space:]]+' "$manifest"
+          grep -Eq '^(luci|luci-light)[[:space:]]+-[[:space:]]+' "$manifest"
           for package in \
             kmod-mt7915e luci-app-ttyd luci-app-adguardhome luci-app-passwall \
-            luci-app-ssr-plus luci-app-wrtbwmon samba4-server dockerd; do
-            if grep -Eq "^${package}([[:space:]]|$)" "$manifest"; then
+            luci-app-ssr-plus luci-app-wrtbwmon luci-app-aria2 \
+            luci-app-transmission luci-app-qbittorrent luci-app-autoreboot \
+            aria2 transmission-daemon qbittorrent-nox samba4-server dockerd; do
+            if grep -Eq "^${package}[[:space:]]+-[[:space:]]+" "$manifest"; then
               echo "forbidden package present in firmware manifest: $package" >&2
               exit 1
             fi
