@@ -57,6 +57,7 @@ The retained core functionality includes:
 - LuCI with the lightweight default interface;
 - MTK `kmod-mt_wifi`, `mtwifi-cfg`, and the matching LuCI pages;
 - MTK HNAT and WARP;
+- the legacy `kmod-ipt-nat` kernel compatibility module required by the 237 HNAT Kconfig (the active userspace firewall remains nftables/firewall4);
 - nftables miniupnpd and the LuCI UPnP page;
 - `iwinfo` for basic wireless status checks.
 

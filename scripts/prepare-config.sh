@@ -51,6 +51,7 @@ required='CONFIG_TARGET_mediatek_filogic=y
 CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_xiaomi_mi-router-wr30u-ubootmod=y
 CONFIG_PACKAGE_kmod-mt_wifi=y
 CONFIG_PACKAGE_kmod-mediatek_hnat=y
+CONFIG_PACKAGE_kmod-ipt-nat=y
 CONFIG_PACKAGE_kmod-warp=y
 CONFIG_PACKAGE_mtwifi-cfg=y
 CONFIG_PACKAGE_luci-app-mtwifi-cfg=y
